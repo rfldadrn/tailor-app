@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id           String        @id @default(cuid())
+  name         String
+  users        User[]
+  accounts     Account[]
+  categories   Category[]
+  parties      Party[]
+  transactions Transaction[]
+  periodLocks  PeriodLock[]
+  auditLogs    AuditLog[]
+}
+
+model User {
+  id                String        @id @default(cuid())
+  orgId             String
+  org               Organization @relation(fields: [orgId], references: [id])
+  name              String
+  email             String        @unique
+  passwordHash      String
+  role              String
+  isActive          Boolean       @default(true)
+  lastLoginAt       DateTime?
+  createdAt         DateTime      @default(now())
+  transactions      Transaction[] @relation("CreatedTransactions")
+  auditLogs         AuditLog[]
+  lockedPeriods     PeriodLock[]  @relation("LockedPeriods")
+  @@index([orgId, role])
+}
+
+model Account {
+  id              String        @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id])
+  name            String
+  kind            String
+  openingBalance  Int           @default(0)
+  openingDate     DateTime
+  isActive        Boolean       @default(true)
+  transactions    Transaction[] @relation("SourceAccount")
+  incomingTransfers Transaction[] @relation("DestinationAccount")
+  @@unique([orgId, name])
+}
+
+model Category {
+  id           String        @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id])
+  name         String
+  kind         String
+  coaCode      String?
+  isActive     Boolean       @default(true)
+  transactions Transaction[]
+  @@unique([orgId, name])
+}
+
+model Party {
+  id           String        @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id])
+  name         String
+  kind         String
+  phone        String?
+  isActive     Boolean       @default(true)
+  transactions Transaction[]
+  @@unique([orgId, kind, name])
+}
+
+model Transaction {
+  id             String        @id @default(cuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id])
+  date           DateTime
+  type           String
+  amount         Int
+  accountId      String
+  account        Account       @relation("SourceAccount", fields: [accountId], references: [id])
+  toAccountId    String?
+  toAccount      Account?      @relation("DestinationAccount", fields: [toAccountId], references: [id])
+  categoryId     String?
+  category       Category?     @relation(fields: [categoryId], references: [id])
+  partyId        String?
+  party          Party?        @relation(fields: [partyId], references: [id])
+  refNo          String?
+  description    String?
+  status         String        @default("POSTED")
+  voidReason     String?
+  createdById    String
+  createdBy      User          @relation("CreatedTransactions", fields: [createdById], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  @@unique([orgId, refNo])
+  @@index([orgId, date])
+  @@index([orgId, accountId, date])
+}
+
+model PeriodLock {
+  id         String        @id @default(cuid())
+  orgId      String
+  org        Organization @relation(fields: [orgId], references: [id])
+  month      String
+  lockedById String
+  lockedBy   User          @relation("LockedPeriods", fields: [lockedById], references: [id])
+  lockedAt   DateTime      @default(now())
+  @@unique([orgId, month])
+}
+
+model AuditLog {
+  id        String        @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id])
+  userId    String
+  user      User          @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String
+  before    String?
+  after     String?
+  createdAt DateTime      @default(now())
+  @@index([orgId, createdAt])
+}
+
+model LoginAttempt {
+  key              String   @id
+  attempts         Int      @default(0)
+  windowStartedAt  DateTime @default(now())
+  blockedUntil     DateTime?
+}

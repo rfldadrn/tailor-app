@@ -1,0 +1,5 @@
+"use client";
+
+export function PrintButton() {
+  return <button className="button" onClick={() => window.print()} type="button">Cetak</button>;
+}
