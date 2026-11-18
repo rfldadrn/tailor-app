@@ -1,15 +1,21 @@
 import Link from "next/link";
+import { BookPeriodFilter } from "@/components/erp/book-period-filter";
 import { PageHeader } from "@/components/erp/page-header";
-import { TransactionDrawer } from "@/components/erp/transaction-drawer";
+import { TransactionDrawer, type TransactionType } from "@/components/erp/transaction-drawer";
 import { TransactionVoid } from "@/components/erp/transaction-void";
 import { formatDate, formatRupiah } from "@/lib/money";
 import { requireUser } from "@/lib/rbac";
+import { resolveBookPeriod } from "@/modules/finance/period";
 import { getBookPage } from "@/modules/finance/repo/finance";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 function one(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function isTransactionType(value: string): value is TransactionType {
+  return value === "IN" || value === "OUT" || value === "TRANSFER";
 }
 
 export default async function CashBookPage({
@@ -19,11 +25,11 @@ export default async function CashBookPage({
 }) {
   const user = await requireUser();
   const params = await searchParams;
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const requestedMonth = one(params.month);
-  const month = requestedMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth)
-    ? requestedMonth
-    : currentMonth;
+  const period = resolveBookPeriod({
+    period: one(params.period),
+    date: one(params.date),
+    month: one(params.month),
+  });
   const parsedPage = Number(one(params.page) ?? "1");
   const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
   const filters = {
@@ -32,12 +38,18 @@ export default async function CashBookPage({
     partyId: one(params.party) || undefined,
     search: one(params.search)?.trim() || undefined,
   };
-  const data = await getBookPage(user.orgId, month, page, filters);
+  const data = await getBookPage(
+    user.orgId,
+    { start: period.start, end: period.end },
+    page,
+    filters,
+  );
   const canEdit = user.role !== "VIEWER";
   const activeAccounts = data.accounts.filter((account) => account.isActive);
-  const activeCategories = data.categories.filter((category) => category.isActive);
   const query = new URLSearchParams();
-  query.set("month", month);
+  query.set("period", period.period);
+  if (period.period === "month") query.set("month", period.month);
+  else query.set("date", period.date);
   if (filters.accountId) query.set("account", filters.accountId);
   if (filters.categoryId) query.set("category", filters.categoryId);
   if (filters.partyId) query.set("party", filters.partyId);
@@ -53,9 +65,9 @@ export default async function CashBookPage({
             <a className="button" href={`/api/export/transactions?${query.toString()}`}>Ekspor CSV</a>
             {canEdit && (
               <TransactionDrawer
-                accounts={activeAccounts.map(({ id, name }) => ({ id, name }))}
-                categories={activeCategories.map(({ id, kind, name }) => ({ id, kind, name }))}
-                parties={data.parties.map(({ id, name }) => ({ id, name }))}
+                accounts={data.accounts.map(({ id, isActive, name }) => ({ id, isActive, name }))}
+                categories={data.categories.map(({ id, isActive, kind, name }) => ({ id, isActive, kind, name }))}
+                parties={data.parties.map(({ id, isActive, kind, name }) => ({ id, isActive, kind, name }))}
                 today={new Date().toISOString().slice(0, 10)}
               />
             )}
@@ -63,8 +75,7 @@ export default async function CashBookPage({
         }
       />
       <form className="filter-bar" method="get">
-        <label className="sr-only" htmlFor="cash-month">Periode</label>
-        <input defaultValue={month} id="cash-month" name="month" type="month" />
+        <BookPeriodFilter period={period.period} date={period.date} month={period.month} />
         <label className="sr-only" htmlFor="cash-account">Akun</label>
         <select defaultValue={filters.accountId ?? ""} id="cash-account" name="account">
           <option value="">Semua akun</option>
@@ -98,7 +109,7 @@ export default async function CashBookPage({
             </thead>
             <tbody>
               <tr className="is-opening">
-                <td>{month.split("-").reverse().join("/")}</td>
+                <td>{period.label}</td>
                 <td>Saldo awal periode</td>
                 <td>{filters.accountId ? activeAccounts.find((account) => account.id === filters.accountId)?.name ?? "Akun" : "Semua akun"}</td>
                 <td className="numeric">—</td><td className="numeric">—</td>
@@ -126,7 +137,11 @@ export default async function CashBookPage({
                     <td>
                       <span className="cell-primary">{transaction.description || transaction.category?.name || "Transfer antar akun"}</span>
                       <span className="cell-secondary">
-                        {[transaction.refNo, transaction.party?.name].filter(Boolean).join(" · ") || "—"}
+                        {[
+                          transaction.description ? transaction.category?.name : null,
+                          transaction.refNo,
+                          transaction.party?.name,
+                        ].filter(Boolean).join(" · ") || "—"}
                       </span>
                     </td>
                     <td>{accountLabel}</td>
@@ -134,7 +149,33 @@ export default async function CashBookPage({
                     <td className="numeric">{credit ? formatRupiah(credit) : "—"}</td>
                     <td className="numeric">{formatRupiah(data.balanceById[transaction.id] ?? data.openingBalance)}</td>
                     <td><span className={`badge ${transaction.status === "VOID" ? "badge-void" : "badge-posted"}`}>{transaction.status === "VOID" ? "Void" : "Tercatat"}</span></td>
-                    {canEdit && <td>{transaction.status === "POSTED" && <TransactionVoid transactionId={transaction.id} />}</td>}
+                    {canEdit && (
+                      <td>
+                        {transaction.status === "POSTED" && isTransactionType(transaction.type) && (
+                          <div className="form-actions">
+                            <TransactionDrawer
+                              accounts={data.accounts.map(({ id, isActive, name }) => ({ id, isActive, name }))}
+                              categories={data.categories.map(({ id, isActive, kind, name }) => ({ id, isActive, kind, name }))}
+                              parties={data.parties.map(({ id, isActive, kind, name }) => ({ id, isActive, kind, name }))}
+                              today={new Date().toISOString().slice(0, 10)}
+                              transaction={{
+                                id: transaction.id,
+                                date: transaction.date,
+                                type: transaction.type,
+                                amount: transaction.amount,
+                                accountId: transaction.accountId,
+                                toAccountId: transaction.toAccountId,
+                                categoryId: transaction.categoryId,
+                                partyId: transaction.partyId,
+                                refNo: transaction.refNo,
+                                description: transaction.description,
+                              }}
+                            />
+                            <TransactionVoid transactionId={transaction.id} />
+                          </div>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })}

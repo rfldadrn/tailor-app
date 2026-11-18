@@ -2,23 +2,58 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+Configure PostgreSQL before starting the application:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+copy .env.example .env
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Set `DATABASE_URL` in `.env` to your PostgreSQL connection string and `AUTH_SECRET` to a random secret (generate one with `node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"`), then apply the schema:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run db:migrate
+npm run dev
+```
+
+In production, run `npm run db:migrate:deploy` to apply committed migrations. This creates the PostgreSQL schema but does not transfer data from an existing SQLite database.
+
+For an empty development database, set `SEED_PASSWORD` in `.env` to a unique value of at least 12 characters, then run `npm run db:seed` to add demo data. The seed resets transactions for its demo organization; do not run it where those transactions must be kept.
+
+Open [http://localhost:3000](http://localhost:3000) to view the application.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Jalankan di laptop pengguna dengan Docker
+
+Pengguna hanya perlu Docker Desktop; Node.js dan PostgreSQL tidak perlu dipasang di host. Setiap laptop mendapat salinan database awal sendiri, lalu perubahan setelahnya hanya tersimpan di laptop tersebut.
+
+### Buat dan bagikan snapshot awal
+
+Di komputer yang memiliki database lokal, pastikan Docker Desktop berjalan lalu jalankan:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\docker\export-snapshot.ps1
+```
+
+Script membaca `DATABASE_URL` dari `.env` dan membuat `docker/init/10-local-snapshot.sql`. File ini berisi data aplikasi dan akun pengguna, jadi bagikan secara privat. Jangan commit ke Git atau masukkan ke image Docker.
+
+### Jalankan di laptop pengguna
+
+1. Pasang dan jalankan Docker Desktop.
+2. Clone repository.
+3. Salin file snapshot yang dibagikan secara privat ke `docker/init/10-local-snapshot.sql`.
+4. Dari folder proyek, jalankan:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\docker\start.ps1
+   ```
+
+Script membuat `.env.docker` dengan rahasia baru untuk instalasi itu, membangun image production, menjalankan migrasi, dan memulai aplikasi. Buka `http://localhost:3000` lalu login menggunakan akun dari snapshot.
+
+PostgreSQL disimpan dalam Docker volume `kasapp-postgres-data`. `docker compose --env-file .env.docker down` menghentikan aplikasi tanpa menghapus datanya. Hindari `docker compose down -v` kecuali memang ingin menghapus database lokal.
+
+Snapshot hanya dimuat saat volume database pertama kali dibuat. Untuk laptop lain, bagikan file SQL secara terpisah; jangan mengunggahnya ke repository atau registry image.
 
 ## Learn More
 

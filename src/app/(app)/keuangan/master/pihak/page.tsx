@@ -1,8 +1,9 @@
 import { DeactivateControl } from "@/components/erp/deactivate-control";
+import { MasterEditControl } from "@/components/erp/master-edit-control";
 import { MasterForm } from "@/components/erp/master-form";
 import { PageHeader } from "@/components/erp/page-header";
 import { requireUser } from "@/lib/rbac";
-import { createParty } from "@/modules/finance/actions/master";
+import { createParty, updateParty } from "@/modules/finance/actions/master";
 import { getParties } from "@/modules/finance/repo/master";
 
 const kindLabels: Record<string, string> = {
@@ -23,14 +24,33 @@ export default async function PartiesPage() {
           <div className="panel-header"><h2>Daftar pihak</h2></div>
           <div className="table-wrap">
             <table className="data-table">
-              <thead><tr><th>Nama</th><th>Jenis</th><th>Telepon</th><th>Status</th><th /></tr></thead>
+              <thead><tr><th>Nama</th><th>Jenis</th><th>Telepon</th><th>Status</th><th>Aksi</th></tr></thead>
               <tbody>
                 {parties.map((party) => (
                   <tr key={party.id}>
                     <td>{party.name}</td><td>{kindLabels[party.kind] ?? party.kind}</td>
                     <td>{party.phone ?? "—"}</td>
                     <td><span className={`badge ${party.isActive ? "badge-posted" : ""}`}>{party.isActive ? "Aktif" : "Nonaktif"}</span></td>
-                    <td>{party.isActive && <DeactivateControl entity="party" id={party.id} name={party.name} />}</td>
+                    <td>
+                      <div className="form-actions">
+                        <MasterEditControl
+                          action={updateParty}
+                          fields={[
+                            { name: "name", label: "Nama", required: true, defaultValue: party.name },
+                            { name: "kind", label: "Jenis pihak", type: "select", required: true, defaultValue: party.kind, options: [
+                              { label: "Pelanggan", value: "CUSTOMER" },
+                              { label: "Karyawan", value: "EMPLOYEE" },
+                              { label: "Lainnya", value: "OTHER" },
+                            ] },
+                            { name: "phone", label: "Nomor telepon (opsional)", defaultValue: party.phone ?? "" },
+                          ]}
+                          id={party.id}
+                          name={party.name}
+                          title="pihak"
+                        />
+                        {party.isActive && <DeactivateControl entity="party" id={party.id} name={party.name} />}
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {parties.length === 0 && <tr><td className="empty-state" colSpan={5}>Belum ada pihak.</td></tr>}

@@ -3,7 +3,12 @@ import bcrypt from "bcryptjs";
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { z } from "zod";
+import type { AppRole } from "@/nav.config";
 import { db } from "@/lib/db";
+
+function isAppRole(role: string): role is AppRole {
+  return role === "OWNER" || role === "ADMIN" || role === "VIEWER";
+}
 
 const credentialsSchema = z.object({
   email: z.string().email().max(254),
@@ -40,7 +45,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           user?.isActive === true &&
           (await bcrypt.compare(parsed.data.password, user.passwordHash));
 
-        if (!user || !user.isActive || !validPassword) {
+        if (!user || !user.isActive || !isAppRole(user.role) || !validPassword) {
           const windowExpired =
             !attempt || now.getTime() - attempt.windowStartedAt.getTime() >= loginWindowMs;
           const attempts = windowExpired ? 1 : attempt.attempts + 1;

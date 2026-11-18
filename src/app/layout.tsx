@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Ruang Jahit — Keuangan",
-  description: "Buku kas dan laporan keuangan Tailor Bu Rina.",
+  title: "Dunia Busana - Sistem Kas",
+  description: "Sistem kas untuk Dunia Busana.",
 };
 
 export default function RootLayout({

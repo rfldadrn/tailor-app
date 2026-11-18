@@ -1,8 +1,9 @@
 import { DeactivateControl } from "@/components/erp/deactivate-control";
+import { MasterEditControl } from "@/components/erp/master-edit-control";
 import { MasterForm } from "@/components/erp/master-form";
 import { PageHeader } from "@/components/erp/page-header";
 import { requireUser } from "@/lib/rbac";
-import { createCategory } from "@/modules/finance/actions/master";
+import { createCategory, updateCategory } from "@/modules/finance/actions/master";
 import { getCategories } from "@/modules/finance/repo/master";
 
 const kindLabels: Record<string, string> = {
@@ -24,14 +25,34 @@ export default async function CategoriesPage() {
           <div className="panel-header"><h2>Daftar kategori</h2></div>
           <div className="table-wrap">
             <table className="data-table">
-              <thead><tr><th>Nama kategori</th><th>Tipe</th><th>Kode akun</th><th>Status</th><th /></tr></thead>
+              <thead><tr><th>Nama kategori</th><th>Tipe</th><th>Kode akun</th><th>Status</th><th>Aksi</th></tr></thead>
               <tbody>
                 {categories.map((category) => (
                   <tr key={category.id}>
                     <td>{category.name}</td><td>{kindLabels[category.kind] ?? category.kind}</td>
                     <td>{category.coaCode ?? "—"}</td>
                     <td><span className={`badge ${category.isActive ? "badge-posted" : ""}`}>{category.isActive ? "Aktif" : "Nonaktif"}</span></td>
-                    <td>{category.isActive && <DeactivateControl entity="category" id={category.id} name={category.name} />}</td>
+                    <td>
+                      <div className="form-actions">
+                        <MasterEditControl
+                          action={updateCategory}
+                          fields={[
+                            { name: "name", label: "Nama kategori", required: true, defaultValue: category.name },
+                            { name: "kind", label: "Tipe kategori", type: "select", required: true, defaultValue: category.kind, options: [
+                              { label: "Pendapatan", value: "INCOME" },
+                              { label: "Biaya", value: "EXPENSE" },
+                              { label: "Piutang karyawan", value: "RECEIVABLE" },
+                              { label: "Modal / prive", value: "EQUITY" },
+                            ] },
+                            { name: "coaCode", label: "Kode akun (opsional)", defaultValue: category.coaCode ?? "" },
+                          ]}
+                          id={category.id}
+                          name={category.name}
+                          title="kategori"
+                        />
+                        {category.isActive && <DeactivateControl entity="category" id={category.id} name={category.name} />}
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {categories.length === 0 && <tr><td className="empty-state" colSpan={5}>Belum ada kategori.</td></tr>}

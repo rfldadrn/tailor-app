@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { signIn } from "@/lib/auth";
@@ -5,20 +6,17 @@ import { signIn } from "@/lib/auth";
 async function authenticate(formData: FormData) {
   "use server";
   try {
-    await signIn("credentials", formData);
+    await signIn("credentials", {
+      ...Object.fromEntries(formData),
+      redirectTo: "/dashboard",
+    });
   } catch (error) {
     if (error instanceof AuthError) redirect("/login?error=credentials");
     throw error;
   }
 }
 
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ error?: string }>;
-}) {
-  const { error } = await searchParams;
-
+function LoginForm({ error }: { error?: string }) {
   return (
     <main className="login-page">
       <section className="login-panel">
@@ -43,5 +41,26 @@ export default async function LoginPage({
         <p className="login-footnote">Akses hanya untuk pengguna yang terdaftar.</p>
       </section>
     </main>
+  );
+}
+
+async function LoginPageContent({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
+  return <LoginForm error={error} />;
+}
+
+export default function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  return (
+    <Suspense fallback={<LoginForm />}>
+      <LoginPageContent searchParams={searchParams} />
+    </Suspense>
   );
 }

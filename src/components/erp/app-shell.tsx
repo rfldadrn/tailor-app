@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { Scissors } from "lucide-react";
+import { LogOut, Scissors } from "lucide-react";
 import { signOut } from "@/lib/auth";
 import { AppNav } from "@/components/erp/app-nav";
 import { GlobalSearch } from "@/components/erp/global-search";
+import { ThemeToggle } from "@/components/erp/theme-toggle";
 import type { AppRole } from "@/nav.config";
 
 const roleLabels: Record<AppRole, string> = {
@@ -31,8 +32,8 @@ export function AppShell({
         <Link className="brand" href="/dashboard">
           <span className="brand-mark"><Scissors aria-hidden="true" size={18} /></span>
           <span>
-            <strong>Ruang Jahit</strong>
-            <small>Keuangan usaha</small>
+            <strong>Dunia Busana</strong>
+            <small>Sistem Kas</small>
           </span>
         </Link>
         <AppNav role={user.role} />
@@ -42,9 +43,6 @@ export function AppShell({
             <strong>{displayName}</strong>
             <small>{roleLabels[user.role]}</small>
           </span>
-          <form action={logout}>
-            <button className="text-button" type="submit">Keluar</button>
-          </form>
         </div>
       </aside>
       <main className="main-column">
@@ -54,7 +52,16 @@ export function AppShell({
             <strong>Ruang Jahit</strong>
           </div>
           <GlobalSearch />
-          <span className="topbar-context">{roleLabels[user.role]} · Buku kas</span>
+          <div className="topbar-actions">
+            <span className="topbar-context">{roleLabels[user.role]} · Buku kas</span>
+            <ThemeToggle />
+            <form action={logout} className="logout-form">
+              <button aria-label="Keluar" className="button logout-button" title="Keluar" type="submit">
+                <LogOut aria-hidden="true" size={15} />
+                <span className="logout-label">Keluar</span>
+              </button>
+            </form>
+          </div>
         </header>
         <div className="mobile-nav"><AppNav role={user.role} /></div>
         <div className="page-content">{children}</div>

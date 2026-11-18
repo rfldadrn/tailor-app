@@ -23,6 +23,14 @@ function isUniqueConflict(error: unknown): boolean {
   );
 }
 
+function revalidateFinanceMaster(path: string): void {
+  revalidatePath(path);
+  revalidatePath("/keuangan/buku-kas");
+  revalidatePath("/dashboard");
+  revalidatePath("/keuangan/laporan/laba-rugi");
+  revalidatePath("/keuangan/laporan/neraca");
+}
+
 export async function createAccount(
   _previousState: ActionState = idleState,
   formData: FormData,
@@ -65,6 +73,65 @@ export async function createAccount(
   return { status: "success", message: "Akun disimpan." };
 }
 
+export async function updateAccount(
+  _previousState: ActionState = idleState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser(["OWNER", "ADMIN"]);
+  const parsed = accountSchema.extend({ id: z.string().min(1) }).safeParse({
+    id: formData.get("id"),
+    name: formData.get("name"),
+    kind: formData.get("kind"),
+    openingBalance: formData.get("openingBalance"),
+    openingDate: formData.get("openingDate"),
+  });
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? "Data akun tidak valid." };
+  const { id, ...data } = parsed.data;
+  const openingDate = new Date(`${data.openingDate}T00:00:00.000Z`);
+
+  let result: "updated" | "not-found" | "date-conflict" = "not-found";
+  try {
+    result = await db.$transaction(async (transaction) => {
+      const before = await transaction.account.findFirst({ where: { id, orgId: user.orgId } });
+      if (!before) return "not-found";
+      const earlierTransaction = await transaction.transaction.findFirst({
+        where: {
+          orgId: user.orgId,
+          date: { lt: openingDate },
+          OR: [{ accountId: id }, { toAccountId: id }],
+        },
+        select: { id: true },
+      });
+      if (earlierTransaction) return "date-conflict";
+      const after = await transaction.account.update({
+        where: { id },
+        data: { ...data, openingDate },
+      });
+      await transaction.auditLog.create({
+        data: {
+          orgId: user.orgId,
+          userId: user.id,
+          action: "ACCOUNT_UPDATE",
+          entity: "Account",
+          entityId: id,
+          before: JSON.stringify(before),
+          after: JSON.stringify(after),
+        },
+      });
+      return "updated";
+    });
+  } catch (error) {
+    if (isUniqueConflict(error)) return { status: "error", message: "Nama akun tersebut sudah digunakan." };
+    throw error;
+  }
+  if (result === "not-found") return { status: "error", message: "Akun tidak ditemukan." };
+  if (result === "date-conflict") {
+    return { status: "error", message: "Tanggal saldo awal tidak boleh melewati transaksi akun yang sudah ada." };
+  }
+  revalidateFinanceMaster("/keuangan/master/akun");
+  return { status: "success", message: "Akun diperbarui." };
+}
+
 export async function createCategory(
   _previousState: ActionState = idleState,
   formData: FormData,
@@ -102,6 +169,51 @@ export async function createCategory(
   return { status: "success", message: "Kategori disimpan." };
 }
 
+export async function updateCategory(
+  _previousState: ActionState = idleState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser(["OWNER", "ADMIN"]);
+  const parsed = categorySchema.extend({ id: z.string().min(1) }).safeParse({
+    id: formData.get("id"),
+    name: formData.get("name"),
+    kind: formData.get("kind"),
+    coaCode: formData.get("coaCode") || undefined,
+  });
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? "Data kategori tidak valid." };
+  const { id, ...data } = parsed.data;
+
+  let updated = false;
+  try {
+    updated = await db.$transaction(async (transaction) => {
+      const before = await transaction.category.findFirst({ where: { id, orgId: user.orgId } });
+      if (!before) return false;
+      const after = await transaction.category.update({
+        where: { id },
+        data: { ...data, coaCode: data.coaCode || null },
+      });
+      await transaction.auditLog.create({
+        data: {
+          orgId: user.orgId,
+          userId: user.id,
+          action: "CATEGORY_UPDATE",
+          entity: "Category",
+          entityId: id,
+          before: JSON.stringify(before),
+          after: JSON.stringify(after),
+        },
+      });
+      return true;
+    });
+  } catch (error) {
+    if (isUniqueConflict(error)) return { status: "error", message: "Nama kategori tersebut sudah digunakan." };
+    throw error;
+  }
+  if (!updated) return { status: "error", message: "Kategori tidak ditemukan." };
+  revalidateFinanceMaster("/keuangan/master/kategori");
+  return { status: "success", message: "Kategori diperbarui." };
+}
+
 export async function createParty(
   _previousState: ActionState = idleState,
   formData: FormData,
@@ -137,6 +249,51 @@ export async function createParty(
   revalidatePath("/keuangan/master/pihak");
   revalidatePath("/keuangan/buku-kas");
   return { status: "success", message: "Pihak disimpan." };
+}
+
+export async function updateParty(
+  _previousState: ActionState = idleState,
+  formData: FormData,
+): Promise<ActionState> {
+  const user = await requireUser(["OWNER", "ADMIN"]);
+  const parsed = partySchema.extend({ id: z.string().min(1) }).safeParse({
+    id: formData.get("id"),
+    name: formData.get("name"),
+    kind: formData.get("kind"),
+    phone: formData.get("phone") || undefined,
+  });
+  if (!parsed.success) return { status: "error", message: parsed.error.issues[0]?.message ?? "Data pihak tidak valid." };
+  const { id, ...data } = parsed.data;
+
+  let updated = false;
+  try {
+    updated = await db.$transaction(async (transaction) => {
+      const before = await transaction.party.findFirst({ where: { id, orgId: user.orgId } });
+      if (!before) return false;
+      const after = await transaction.party.update({
+        where: { id },
+        data: { ...data, phone: data.phone || null },
+      });
+      await transaction.auditLog.create({
+        data: {
+          orgId: user.orgId,
+          userId: user.id,
+          action: "PARTY_UPDATE",
+          entity: "Party",
+          entityId: id,
+          before: JSON.stringify(before),
+          after: JSON.stringify(after),
+        },
+      });
+      return true;
+    });
+  } catch (error) {
+    if (isUniqueConflict(error)) return { status: "error", message: "Nama pihak pada jenis ini sudah digunakan." };
+    throw error;
+  }
+  if (!updated) return { status: "error", message: "Pihak tidak ditemukan." };
+  revalidateFinanceMaster("/keuangan/master/pihak");
+  return { status: "success", message: "Pihak diperbarui." };
 }
 
 const userSchema = z.object({

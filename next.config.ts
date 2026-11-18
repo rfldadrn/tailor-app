@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  allowedDevOrigins: ["hyphen-province-decathlon.ngrok-free.dev"],
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
+
+# private local database snapshot
+/docker/init/*.sql
 
 # vercel
 .vercel

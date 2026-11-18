@@ -39,11 +39,17 @@ export async function getPeriodLocks(orgId: string) {
 
 export async function getTransactionsForExport(
   orgId: string,
-  month: string,
+  range: { start: Date; end: Date },
   filters: { accountId?: string; categoryId?: string; partyId?: string; search?: string } = {},
 ) {
-  const start = new Date(`${month}-01T00:00:00.000Z`);
-  const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1));
+  const { start, end } = range;
+  if (
+    Number.isNaN(start.getTime()) ||
+    Number.isNaN(end.getTime()) ||
+    start.getTime() >= end.getTime()
+  ) {
+    throw new Error("Rentang periode tidak valid.");
+  }
   const clauses = [];
   if (filters.accountId) {
     clauses.push({ OR: [{ accountId: filters.accountId }, { toAccountId: filters.accountId }] });

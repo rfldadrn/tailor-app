@@ -4,11 +4,12 @@ import { useActionState, useEffect, useRef } from "react";
 import type { ActionState } from "@/modules/finance/actions/transactions";
 
 type FormAction = (state: ActionState, formData: FormData) => Promise<ActionState>;
-type Field = {
+export type MasterField = {
   name: string;
   label: string;
   type?: "text" | "number" | "date" | "email" | "password" | "select";
   required?: boolean;
+  defaultValue?: string;
   options?: { label: string; value: string }[];
 };
 
@@ -22,7 +23,7 @@ export function MasterForm({
 }: {
   title: string;
   action: FormAction;
-  fields: Field[];
+  fields: MasterField[];
   submitLabel?: string;
 }) {
   const [state, formAction, pending] = useActionState(action, initialState);
@@ -39,7 +40,7 @@ export function MasterForm({
           <label className="field" key={field.name}>
             {field.label}
             {field.type === "select" ? (
-              <select defaultValue="" name={field.name} required={field.required}>
+              <select defaultValue={field.defaultValue ?? ""} name={field.name} required={field.required}>
                 <option disabled value="">Pilih {field.label.toLowerCase()}</option>
                 {field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
@@ -49,6 +50,7 @@ export function MasterForm({
                 max={field.type === "number" ? 2_147_483_647 : undefined}
                 min={field.type === "number" ? 0 : undefined}
                 name={field.name}
+                defaultValue={field.defaultValue}
                 required={field.required}
                 type={field.type ?? "text"}
               />

@@ -73,13 +73,18 @@ export async function getFinanceSnapshot(orgId: string) {
 
 export async function getBookPage(
   orgId: string,
-  month: string,
+  range: { start: Date; end: Date },
   page = 1,
   filters: { accountId?: string; categoryId?: string; partyId?: string; search?: string } = {},
 ) {
-  const start = new Date(`${month}-01T00:00:00.000Z`);
-  if (Number.isNaN(start.getTime())) throw new Error("Periode bulan tidak valid.");
-  const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1));
+  const { start, end } = range;
+  if (
+    Number.isNaN(start.getTime()) ||
+    Number.isNaN(end.getTime()) ||
+    start.getTime() >= end.getTime()
+  ) {
+    throw new Error("Rentang periode tidak valid.");
+  }
   const and: Prisma.TransactionWhereInput[] = [];
   if (filters.accountId) {
     and.push({ OR: [{ accountId: filters.accountId }, { toAccountId: filters.accountId }] });
